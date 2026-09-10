@@ -10,7 +10,7 @@ export function buildDeterministicPreparation(job: { title: string; company: str
       ...(facts.length ? [] : ["Confirme fatos profissionais no perfil antes de usar a apresentação."]),
       ...(!hasConfirmedResume ? ["Selecione e confirme uma versão de currículo."] : []),
       "Revise salário, disponibilidade, autorização de trabalho e mudança de cidade quando aplicável.",
-      "Conclua o envio manualmente no portal da vaga.",
+      "Revise a última tela e conclua o envio manualmente, inclusive quando usar o modo semiautomático.",
     ],
   };
 }

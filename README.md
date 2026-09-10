@@ -1,6 +1,6 @@
 # Carreira — organizador pessoal de busca de emprego
 
-Aplicação local e de usuário único para cadastrar vagas, avaliar compatibilidade, preparar materiais fundamentados e acompanhar candidaturas. O sistema não envia candidaturas e não coleta páginas de portais: ele organiza os materiais e abre o link para conclusão manual.
+Aplicação local e de usuário único para cadastrar vagas, avaliar compatibilidade, preparar materiais fundamentados e acompanhar candidaturas. O modo semiautomático abre um navegador dedicado, preenche campos seguros, anexa o currículo correto e para na revisão final. O sistema nunca envia a candidatura por conta própria.
 
 ## O que funciona
 
@@ -14,13 +14,16 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 - Versões de currículo Full-Stack, Backend/Integrações e IA/Automação sem adicionar fatos.
 - Preparação determinística completa sem IA; OpenAI opcional com saída estruturada, validação de vínculo e limite mensal.
 - Banco de respostas com marcação de conteúdo sensível e confirmação.
+- Candidatura semiautomática com sessão persistente, currículo recomendado por idioma, preenchimento contínuo entre etapas e relatório de campos.
+- Destaque visual no portal: verde para dados preenchidos e laranja para decisões pendentes; o clique final é sempre humano.
 - Gmail opcional via OAuth, escopo somente leitura e seleção de um marcador específico.
 - Dashboard com denominadores explícitos, exportação/restauração JSON e exclusão de dados.
 - Worker Node separado, agendamento simples, trava de concorrência e registro de execuções.
 
 ## Limites intencionais
 
-- LinkedIn, Indeed, Sólides e portais semelhantes não são coletados nem preenchidos automaticamente. Use o cadastro manual e o botão para abrir a candidatura.
+- O modo semiautomático não contorna login, CAPTCHA, MFA, bloqueios de robô ou termos do portal. Se o site impedir automação, continue manualmente.
+- Botões de avanço e envio não são clicados pelo assistente. Salário, visto/autorização, documentos, dados demográficos, declarações legais e campos ambíguos permanecem para decisão humana.
 - O Gmail importa somente mensagens do marcador escolhido. Um link no e-mail não é acessado; alertas curtos são marcados como incompletos.
 - A extração de PDF não executa OCR. PDFs digitalizados sem camada de texto geram aviso.
 - A IA nunca envia candidaturas, executa comandos ou acessa segredos. Se falhar ou não estiver configurada, o fluxo determinístico continua disponível.
@@ -37,11 +40,34 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 1. Abra **Perfil**, revise os dados iniciais e mantenha como rascunho tudo que ainda não foi validado.
 2. Copie para **Fatos confirmados** somente afirmações que você revisou e aceita usar em candidaturas.
 3. Importe o currículo em **Currículos**, confira o texto extraído e confirme a versão.
-4. Cadastre uma vaga em **Vagas**. A URL é armazenada e normalizada, mas nunca é acessada pelo servidor.
+4. Cadastre uma vaga em **Vagas**, incluindo a URL HTTP/HTTPS do formulário.
 5. Revise nota, cobertura, requisitos atendidos, lacunas, desconhecidos e critérios eliminatórios.
 6. Avance para **Aprovada para preparar** e gere os materiais.
-7. Revise as pendências, abra o portal e conclua a candidatura manualmente.
-8. Marque **Enviada** apenas com a caixa de confirmação ou uma evidência verificável.
+7. Em **Modo semiautomático**, confirme o currículo recomendado e clique em **Abrir e preencher candidatura**.
+8. Faça login se necessário e avance pelas telas. O assistente acompanha a navegação, preenche campos reconhecidos e anexa o currículo; verde significa preenchido e laranja significa revisar.
+9. Na última tela, revise todos os dados e clique você mesmo em enviar. Fechar o navegador encerra a sessão assistida.
+10. Marque **Enviada** no painel apenas depois de ver a confirmação do portal, usando a caixa de confirmação ou uma evidência verificável.
+
+## Candidatura semiautomática
+
+O assistente usa um perfil de navegador próprio em `data/application-browser-profile/`. Login e cookies feitos nesse navegador ficam apenas neste computador e são reutilizados nas próximas sessões. Cada execução é registrada no detalhe da vaga com os estados **abrindo**, **ativa**, **pronta para revisão**, **fechada** ou **falhou**.
+
+Dados preenchidos automaticamente:
+
+- nome, e-mail, telefone e localização do perfil;
+- LinkedIn, GitHub, portfólio e site quando disponíveis;
+- apresentação curta e carta de apresentação já preparadas;
+- respostas não sensíveis que estejam confirmadas no Banco de respostas;
+- arquivo do currículo confirmado, priorizando inglês para anúncios em inglês e português para anúncios em português.
+
+Dados deliberadamente não decididos pelo assistente:
+
+- salário, disponibilidade específica, visto, patrocínio e autorização de trabalho;
+- gênero, raça/etnia, deficiência, condição de veterano e outras perguntas demográficas;
+- CPF/RG, data de nascimento, antecedentes, declarações legais e testes técnicos;
+- caixas de seleção, opções sem resposta confirmada, CAPTCHA, login, avanço de etapas e envio final.
+
+Portais mudam seus formulários com frequência. Quando um campo não puder ser identificado com segurança, ele aparece em laranja e no relatório da sessão; isso é comportamento esperado, não uma tentativa de adivinhar a resposta.
 
 ## Estados do pipeline
 
@@ -78,6 +104,7 @@ A nota é uma comparação determinística com o perfil, não uma probabilidade 
 ```powershell
 npm install
 Copy-Item .env.example .env
+npx playwright install chromium
 npx prisma generate
 npx prisma migrate deploy
 npm run db:seed
@@ -91,6 +118,8 @@ npm run worker
 ```
 
 O painel e o banco ficam restritos a este computador por padrão. O SQLite é salvo em `data/app.db`; uploads ficam em `data/uploads/`.
+
+O navegador do modo semiautomático precisa de uma sessão gráfica local. No Docker, use o painel e o fluxo manual; execute a aplicação diretamente no Windows para abrir o navegador assistido.
 
 ### Comandos úteis
 
@@ -195,8 +224,8 @@ Executado em 9 de setembro de 2026 no Chromium do Playwright. Foram criadas quat
 
 Resultado da execução completa:
 
-- 17 testes unitários e de integração aprovados.
-- 6 testes de interface aprovados, incluindo os quatro casos de QA acima.
+- 21 testes unitários e de integração aprovados.
+- 7 testes de interface aprovados, incluindo os quatro casos de QA acima e a proteção do modo semiautomático.
 - Build de produção aprovado.
 - Lint e verificação TypeScript aprovados.
 - Worker iniciado e execução agendada concluída com sucesso.
@@ -208,6 +237,7 @@ Resultado da execução completa:
 | --- | --- | --- |
 | `/api/health` | GET | Verificação de processo e acesso ao SQLite. |
 | `/api/resumes` | POST | Upload validado e extração de PDF/DOCX. |
+| `/api/application-automation/:id` | GET | Estado e relatório local de uma sessão semiautomática. |
 | `/api/backup` | GET | Exportação JSON sem tokens ou segredos. |
 | `/api/backup/restore` | POST | Restauração transacional de backup validado. |
 | `/api/data/delete` | POST | Exclusão local após a confirmação textual `EXCLUIR`. |
@@ -224,6 +254,9 @@ Resultado da execução completa:
 - **OpenAI desativada:** configure chave e modelo no `.env`, reinicie o painel e habilite a opção em **Integrações**.
 - **Porta 3000 ocupada:** encerre o processo anterior antes de reiniciar, preservando a URL do callback configurada.
 - **Falha no worker:** consulte **Execuções**; mensagens são limitadas e nunca incluem tokens.
+- **Navegador assistido não abre:** execute `npx playwright install chromium`, feche outra sessão assistida que esteja usando o mesmo perfil e tente novamente.
+- **Portal pede login ou CAPTCHA:** conclua essa etapa no navegador aberto; o assistente retomará o preenchimento dos campos reconhecidos na tela seguinte.
+- **Campo ficou laranja:** preencha/revise manualmente ou cadastre uma resposta não sensível e confirmada no Banco de respostas para futuras sessões.
 
 ## Estrutura
 
@@ -238,9 +271,10 @@ Resultado da execução completa:
 - `.env`, SQLite, uploads, backups locais e relatórios de teste são ignorados pelo Git.
 - O painel não possui contas, organizações, cobrança ou exposição pública intencional.
 - Route Handlers e Server Actions validam limites e campos relevantes no servidor.
-- URLs importadas aceitam apenas HTTP/HTTPS; nenhuma requisição é feita a elas.
+- URLs importadas aceitam apenas HTTP/HTTPS. A URL só é acessada quando o usuário inicia explicitamente uma sessão semiautomática ou abre o link.
 - Erros externos têm timeout/tentativas limitadas e são registrados sem credenciais.
 - Backups exportados omitem integrações e tokens; guarde os arquivos exportados em local protegido.
 - O sistema não responde testes técnicos, avaliações comportamentais ou declarações pessoais como se fosse o usuário.
+- O executor não interpreta instruções da página: ele só compara rótulos de campos com uma lista local e nunca executa texto fornecido pelo anúncio.
 
 Dados iniciais sobre GPECx e tecnologias são apenas rascunhos editáveis. Eles não entram em textos de candidatura até serem copiados e confirmados explicitamente em **Fatos confirmados**.

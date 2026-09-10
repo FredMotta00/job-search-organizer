@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { adjustScore, prepareApplication, reassessJob, transitionJob } from "@/app/actions";
+import { adjustScore, prepareApplication, reassessJob, startSemiAutomaticApplication, transitionJob } from "@/app/actions";
+import { ApplicationAutomationStatus } from "@/components/application-automation-status";
 import { Badge, Card, PageHeader } from "@/components/ui";
+import { jobLooksEnglish, resumeLanguageScore } from "@/lib/application-fields";
 import { prisma } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { allowedTransitions, STATUS_LABELS } from "@/lib/status";
@@ -11,11 +13,14 @@ export const dynamic = "force-dynamic";
 export default async function JobDetail({ params, searchParams }: { params: Promise<{id:string}>; searchParams: Promise<Record<string,string|undefined>> }) {
   const { id } = await params; const query = await searchParams;
   const [job,resumes] = await Promise.all([
-    prisma.job.findUnique({ where:{id}, include:{assessment:true,histories:{orderBy:{createdAt:"desc"}},preparations:{orderBy:{createdAt:"desc"},include:{resume:true}}} }),
+    prisma.job.findUnique({ where:{id}, include:{assessment:true,histories:{orderBy:{createdAt:"desc"}},preparations:{orderBy:{createdAt:"desc"},include:{resume:true}},automationRuns:{orderBy:{createdAt:"desc"},take:5,include:{resume:true}}} }),
     prisma.resume.findMany({where:{confirmed:true},orderBy:{createdAt:"desc"}}),
   ]); if(!job) notFound();
   const assessment=job.assessment; const score=job.manualScore ?? assessment?.score ?? 0;
   const matched=parseJson<string[]>(assessment?.matchedJson,[]), gaps=parseJson<string[]>(assessment?.gapsJson,[]), unknown=parseJson<string[]>(assessment?.unknownJson,[]), blocks=parseJson<string[]>(assessment?.hardBlocksJson,[]);
+  const fileResumes=resumes.filter(resume=>Boolean(resume.storedPath));
+  const englishJob=jobLooksEnglish(job);
+  const recommendedResume=[...fileResumes].sort((a,b)=>resumeLanguageScore(b,englishJob)-resumeLanguageScore(a,englishJob))[0];
   return <>
     <PageHeader eyebrow={job.company} title={job.title} description={`${job.source} · ${STATUS_LABELS[job.status]}`} actions={<>{job.url&&<a className="btn secondary" href={job.url} target="_blank" rel="noreferrer">Abrir candidatura ↗</a>}<Link className="btn secondary" href="/vagas">Voltar</Link></>} />
     {query.erro&&<div className="notice">{decodeURIComponent(query.erro)}</div>}
@@ -36,6 +41,18 @@ export default async function JobDetail({ params, searchParams }: { params: Prom
     </div>
     <Card style={{marginTop:18} as React.CSSProperties}><h2>Preparação da candidatura</h2><p className="muted">Os textos usam apenas fatos explicitamente confirmados. Salário, disponibilidade e declarações sensíveis permanecem pendentes de revisão.</p><form action={prepareApplication} className="actions"><input type="hidden" name="jobId" value={id}/><select name="resumeId" style={{maxWidth:360}}><option value="">Sem currículo selecionado</option>{resumes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select><button>Gerar materiais determinísticos</button></form>
       {job.preparations.map(p=><div className="card" key={p.id} style={{marginTop:14}}><div className="split"><strong>Preparação de {p.createdAt.toLocaleString("pt-BR")}</strong><Badge>{p.aiProvider}</Badge></div><h3>Resumo</h3><p>{p.opportunitySummary}</p><h3>Apresentação curta</h3><pre className="textPreview">{p.shortIntroduction}</pre><h3>Alterações propostas</h3><ul>{parseJson<string[]>(p.proposedChangesJson,[]).map(x=><li key={x}>{x}</li>)}</ul><h3>Pendências</h3><ul>{parseJson<string[]>(p.pendingItemsJson,[]).map(x=><li key={x}>{x}</li>)}</ul></div>)}
+    </Card>
+    <Card style={{marginTop:18} as React.CSSProperties}>
+      <div className="split"><div><h2>Modo semiautomático</h2><p className="muted">Abre um navegador dedicado, preenche apenas dados seguros, anexa o currículo e acompanha novas etapas. Você continua responsável por avançar e enviar.</p></div><Badge tone="info">sempre para antes do envio</Badge></div>
+      <div className="callout"><strong>Como funciona</strong><p>Campos verdes foram preenchidos. Campos laranja exigem sua decisão. Login, CAPTCHA, perguntas sensíveis, botões “Próximo” e o envio final ficam com você.</p></div>
+      <form action={startSemiAutomaticApplication} className="stack automationForm">
+        <input type="hidden" name="jobId" value={id}/>
+        <label>Currículo para anexar<select name="resumeId" defaultValue={recommendedResume?.id ?? ""} required><option value="" disabled>Selecione um currículo com arquivo</option>{fileResumes.map(resume=><option key={resume.id} value={resume.id}>{resume.name}{resume.id===recommendedResume?.id?` — recomendado para vaga em ${englishJob?"inglês":"português"}`:""}</option>)}</select></label>
+        <label>Materiais de apoio<select name="preparationId" defaultValue={job.preparations[0]?.id ?? ""}><option value="">Sem texto preparado</option>{job.preparations.map(preparation=><option value={preparation.id} key={preparation.id}>{preparation.createdAt.toLocaleString("pt-BR")} · {preparation.aiProvider}</option>)}</select></label>
+        <button disabled={!job.url||fileResumes.length===0}>Abrir e preencher candidatura</button>
+        {!job.url&&<small className="muted">Adicione a URL da vaga para habilitar o assistente.</small>}{fileResumes.length===0&&<small className="muted">Confirme um currículo importado com arquivo original.</small>}
+      </form>
+      {job.automationRuns.length>0&&<div className="automationRuns"><h3>Sessões recentes</h3>{job.automationRuns.map(run=><ApplicationAutomationStatus key={run.id} initial={{id:run.id,status:run.status,filledFields:parseJson(run.filledFieldsJson,[]),pendingFields:parseJson(run.pendingFieldsJson,[]),lastError:run.lastError}}/>)}</div>}
     </Card>
   </>;
 }

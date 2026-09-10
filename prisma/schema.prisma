@@ -55,39 +55,40 @@ model Profile {
 }
 
 model Job {
-  id                    String                   @id @default(cuid())
-  source                String
-  externalId            String?
-  url                   String?
-  normalizedUrl         String?
-  company               String
-  title                 String
-  description           String
-  requiredJson          String                   @default("[]")
-  desiredJson           String                   @default("[]")
-  responsibilitiesJson  String                   @default("[]")
-  languagesJson         String                   @default("[]")
-  location              String?
-  workMode              String?
-  seniority             String?
-  contractType          String?
-  salaryMin             Float?
-  salaryMax             Float?
-  currency              String?
-  salaryPeriod          String?
-  publishedAt           DateTime?
-  importedAt            DateTime                 @default(now())
-  fieldOriginsJson      String                   @default("{}")
-  incomplete            Boolean                  @default(false)
-  possibleDuplicate     Boolean                  @default(false)
-  status                JobStatus                @default(NOVA)
-  manualScore           Int?
-  manualScoreReason     String?
-  assessment            MatchAssessment?
-  histories             StatusHistory[]
-  preparations          ApplicationPreparation[]
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
+  id                   String                   @id @default(cuid())
+  source               String
+  externalId           String?
+  url                  String?
+  normalizedUrl        String?
+  company              String
+  title                String
+  description          String
+  requiredJson         String                   @default("[]")
+  desiredJson          String                   @default("[]")
+  responsibilitiesJson String                   @default("[]")
+  languagesJson        String                   @default("[]")
+  location             String?
+  workMode             String?
+  seniority            String?
+  contractType         String?
+  salaryMin            Float?
+  salaryMax            Float?
+  currency             String?
+  salaryPeriod         String?
+  publishedAt          DateTime?
+  importedAt           DateTime                 @default(now())
+  fieldOriginsJson     String                   @default("{}")
+  incomplete           Boolean                  @default(false)
+  possibleDuplicate    Boolean                  @default(false)
+  status               JobStatus                @default(NOVA)
+  manualScore          Int?
+  manualScoreReason    String?
+  assessment           MatchAssessment?
+  histories            StatusHistory[]
+  preparations         ApplicationPreparation[]
+  automationRuns       ApplicationAutomation[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
   @@unique([source, externalId])
   @@index([normalizedUrl])
@@ -95,110 +96,133 @@ model Job {
 }
 
 model MatchAssessment {
-  id               String   @id @default(cuid())
-  jobId            String   @unique
-  score            Int
-  category         String
-  coverage         Int
-  explanation      String
-  matchedJson      String   @default("[]")
-  gapsJson         String   @default("[]")
-  unknownJson      String   @default("[]")
-  hardBlocksJson   String   @default("[]")
-  criteriaJson     String   @default("{}")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  jobId          String   @unique
+  score          Int
+  category       String
+  coverage       Int
+  explanation    String
+  matchedJson    String   @default("[]")
+  gapsJson       String   @default("[]")
+  unknownJson    String   @default("[]")
+  hardBlocksJson String   @default("[]")
+  criteriaJson   String   @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
 }
 
 model Resume {
-  id               String            @id @default(cuid())
+  id               String                   @id @default(cuid())
   name             String
   originalFileName String?
   mimeType         String?
   size             Int?
   storedPath       String?
   extractedText    String
-  confirmed        Boolean           @default(false)
-  orientation      ResumeOrientation @default(ORIGINAL)
+  confirmed        Boolean                  @default(false)
+  orientation      ResumeOrientation        @default(ORIGINAL)
   parentId         String?
-  changesJson      String             @default("[]")
-  parent           Resume?           @relation("ResumeVersions", fields: [parentId], references: [id])
-  versions         Resume[]           @relation("ResumeVersions")
+  changesJson      String                   @default("[]")
+  parent           Resume?                  @relation("ResumeVersions", fields: [parentId], references: [id])
+  versions         Resume[]                 @relation("ResumeVersions")
   preparations     ApplicationPreparation[]
+  automationRuns   ApplicationAutomation[]
   histories        StatusHistory[]
-  createdAt        DateTime          @default(now())
+  createdAt        DateTime                 @default(now())
 }
 
 model AnswerEntry {
-  id          String   @id @default(cuid())
-  question    String
-  answer      String
-  sensitive   Boolean  @default(false)
-  confirmed   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  sensitive Boolean  @default(false)
+  confirmed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model ApplicationPreparation {
-  id                  String   @id @default(cuid())
-  jobId               String
-  resumeId            String?
-  opportunitySummary  String
-  shortIntroduction   String
-  coverLetter         String?
-  suggestedAnswersJson String  @default("[]")
-  pendingItemsJson    String   @default("[]")
-  groundedClaimsJson  String   @default("[]")
-  proposedChangesJson String   @default("[]")
-  reviewed            Boolean  @default(false)
-  aiProvider          String   @default("deterministic")
-  createdAt           DateTime @default(now())
-  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  resume              Resume?  @relation(fields: [resumeId], references: [id])
+  id                   String                  @id @default(cuid())
+  jobId                String
+  resumeId             String?
+  opportunitySummary   String
+  shortIntroduction    String
+  coverLetter          String?
+  suggestedAnswersJson String                  @default("[]")
+  pendingItemsJson     String                  @default("[]")
+  groundedClaimsJson   String                  @default("[]")
+  proposedChangesJson  String                  @default("[]")
+  reviewed             Boolean                 @default(false)
+  aiProvider           String                  @default("deterministic")
+  createdAt            DateTime                @default(now())
+  job                  Job                     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resume               Resume?                 @relation(fields: [resumeId], references: [id])
+  automationRuns       ApplicationAutomation[]
+}
+
+model ApplicationAutomation {
+  id                String                  @id @default(cuid())
+  jobId             String
+  preparationId     String?
+  resumeId          String
+  status            String                  @default("QUEUED")
+  filledFieldsJson  String                  @default("[]")
+  pendingFieldsJson String                  @default("[]")
+  lastError         String?
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  job               Job                     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  preparation       ApplicationPreparation? @relation(fields: [preparationId], references: [id], onDelete: SetNull)
+  resume            Resume                  @relation(fields: [resumeId], references: [id])
+
+  @@index([jobId, createdAt])
+  @@index([status])
 }
 
 model StatusHistory {
-  id              String    @id @default(cuid())
+  id              String     @id @default(cuid())
   jobId           String
   fromStatus      JobStatus?
   toStatus        JobStatus
   note            String?
   evidence        String?
-  confirmedSent   Boolean   @default(false)
+  confirmedSent   Boolean    @default(false)
   sourceMessageId String?
   resumeVersionId String?
-  createdAt       DateTime  @default(now())
-  job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  resume          Resume?   @relation(fields: [resumeVersionId], references: [id])
+  createdAt       DateTime   @default(now())
+  job             Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resume          Resume?    @relation(fields: [resumeVersionId], references: [id])
 }
 
 model Settings {
-  id                    Int      @id @default(1)
-  technologiesWeight    Int      @default(30)
-  seniorityWeight       Int      @default(20)
-  locationWeight        Int      @default(15)
-  responsibilitiesWeight Int     @default(15)
-  languageWeight        Int      @default(10)
-  salaryWeight          Int      @default(10)
-  aiEnabled             Boolean  @default(false)
-  aiMonthlyLimit        Int      @default(30)
-  aiRequestsThisMonth   Int      @default(0)
-  aiUsageMonth          String   @default("")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                     Int      @id @default(1)
+  technologiesWeight     Int      @default(30)
+  seniorityWeight        Int      @default(20)
+  locationWeight         Int      @default(15)
+  responsibilitiesWeight Int      @default(15)
+  languageWeight         Int      @default(10)
+  salaryWeight           Int      @default(10)
+  aiEnabled              Boolean  @default(false)
+  aiMonthlyLimit         Int      @default(30)
+  aiRequestsThisMonth    Int      @default(0)
+  aiUsageMonth           String   @default("")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 model Integration {
-  id              String   @id @default(cuid())
-  provider        String   @unique
+  id              String    @id @default(cuid())
+  provider        String    @unique
   status          String
   selectedFolder  String?
   encryptedTokens String?
   lastSyncAt      DateTime?
   lastError       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Execution {

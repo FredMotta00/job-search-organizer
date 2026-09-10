@@ -10,6 +10,8 @@ import { neutralizeUntrustedText, normalizeJobUrl } from "@/lib/security";
 import { validateTransition } from "@/lib/status";
 import { buildDeterministicPreparation } from "@/lib/preparation";
 import { OpenAiProvider } from "@/lib/ai";
+import { jobLooksEnglish, resumeLanguageScore } from "@/lib/application-fields";
+import { launchApplicationAssistant } from "@/lib/automation-launcher";
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const optional = (data: FormData, key: string) => text(data, key) || null;
@@ -212,4 +214,44 @@ export async function saveSettings(data: FormData) {
 export async function saveGmailLabel(data: FormData) {
   await prisma.integration.update({ where: { provider: "gmail" }, data: { selectedFolder: text(data, "label") } });
   revalidatePath("/integracoes");
+}
+
+export async function startSemiAutomaticApplication(data: FormData) {
+  const jobId = text(data, "jobId");
+  const requestedResumeId = optional(data, "resumeId");
+  const requestedPreparationId = optional(data, "preparationId");
+  const activeSince = new Date(Date.now() - 2 * 60 * 1000);
+  const activeRun = await prisma.applicationAutomation.findFirst({ where: { status: { in: ["QUEUED", "STARTING", "ACTIVE", "REVIEW_READY"] }, updatedAt: { gte: activeSince } } });
+  if (activeRun) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Já existe uma sessão assistida aberta. Feche o navegador dela e tente novamente.")}`);
+  const [job, resumes] = await Promise.all([
+    prisma.job.findUnique({ where: { id: jobId } }),
+    prisma.resume.findMany({ where: { confirmed: true, storedPath: { not: null } } }),
+  ]);
+  if (!job?.url) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Informe a URL da candidatura antes de iniciar o assistente.")}`);
+  if (!resumes.length) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Confirme um currículo com arquivo PDF ou DOCX antes de iniciar.")}`);
+
+  const english = jobLooksEnglish(job);
+  const recommended = [...resumes].sort((a, b) => resumeLanguageScore(b, english) - resumeLanguageScore(a, english))[0];
+  const resume = requestedResumeId ? resumes.find((item) => item.id === requestedResumeId) : recommended;
+  if (!resume) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("O currículo selecionado não está disponível ou confirmado.")}`);
+
+  const preparation = requestedPreparationId
+    ? await prisma.applicationPreparation.findFirst({ where: { id: requestedPreparationId, jobId } })
+    : await prisma.applicationPreparation.findFirst({ where: { jobId, OR: [{ resumeId: resume.id }, { resumeId: null }] }, orderBy: { createdAt: "desc" } });
+  if (requestedPreparationId && !preparation) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("A preparação selecionada não pertence a esta vaga.")}`);
+
+  const run = await prisma.applicationAutomation.create({
+    data: { jobId, resumeId: resume.id, preparationId: preparation?.id },
+  });
+  try {
+    launchApplicationAssistant(run.id);
+  } catch (error) {
+    await prisma.applicationAutomation.update({
+      where: { id: run.id },
+      data: { status: "FAILED", lastError: error instanceof Error ? error.message.slice(0, 500) : "Falha ao iniciar o navegador.", finishedAt: new Date() },
+    });
+    redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Não foi possível abrir o navegador assistido.")}`);
+  }
+  revalidatePath(`/vagas/${jobId}`);
+  redirect(`/vagas/${jobId}?assistente=${run.id}`);
 }
