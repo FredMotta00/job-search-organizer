@@ -17,6 +17,8 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 - Candidatura semiautomática com sessão persistente, currículo padrão global, preenchimento contínuo entre etapas e relatório de campos.
 - Destaque visual no portal: verde para dados preenchidos e laranja para decisões pendentes; o clique final é sempre humano.
 - Gmail opcional via OAuth, escopo somente leitura e seleção de um marcador específico.
+- Descoberta automática a cada duas horas por alertas oficiais de LinkedIn, Indeed e Glassdoor recebidos no Gmail.
+- Validação do domínio remetente, deduplicação, nota mínima, limite diário e filtros do perfil antes de colocar uma vaga na fila.
 - Dashboard com denominadores explícitos, exportação/restauração JSON e exclusão de dados.
 - Worker Node separado, agendamento simples, trava de concorrência e registro de execuções.
 
@@ -24,7 +26,9 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 
 - O modo semiautomático não contorna login, CAPTCHA, MFA, bloqueios de robô ou termos do portal. Se o site impedir automação, continue manualmente.
 - Botões de avanço e envio não são clicados pelo assistente. Salário, visto/autorização, documentos, dados demográficos, declarações legais e campos ambíguos permanecem para decisão humana.
-- O Gmail importa somente mensagens do marcador escolhido. Um link no e-mail não é acessado; alertas curtos são marcados como incompletos.
+- A importação manual do Gmail usa o marcador escolhido. A descoberta agendada consulta somente remetentes oficiais dos três portais; nenhum link do alerta é visitado durante a busca.
+- LinkedIn, Indeed e Glassdoor exigem que os alertas de busca sejam criados uma vez nas próprias contas. Depois disso, a coleta pelo Gmail dispensa busca manual.
+- O projeto não raspa páginas, contorna proteções nem automatiza o envio final. Portais podem alterar formatos de e-mail; itens não reconhecidos permanecem ignorados com segurança.
 - A extração de PDF não executa OCR. PDFs digitalizados sem camada de texto geram aviso.
 - A IA nunca envia candidaturas, executa comandos ou acessa segredos. Se falhar ou não estiver configurada, o fluxo determinístico continua disponível.
 - Não foram implementados CAPTCHA, MFA, proxies, cookies extraídos ou qualquer técnica de evasão.
@@ -32,6 +36,7 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 ## Requisitos
 
 - Node.js 20, 22 ou 24+.
+- Python 3.11 ou superior para o agendador de descoberta.
 - npm.
 - Docker é opcional.
 
@@ -127,6 +132,8 @@ O navegador do modo semiautomático precisa de uma sessão gráfica local. No Do
 | --- | --- |
 | `npm run dev` | Painel em modo de desenvolvimento, ligado somente a `127.0.0.1`. |
 | `npm run worker` | Worker de sincronização e tarefas agendadas. |
+| `npm run search:once` | Executa uma busca imediata nos alertas oficiais do Gmail. |
+| `npm run search:python` | Mantém o agendador Python ativo no terminal, com intervalo padrão de duas horas. |
 | `npm run build` | Gera Prisma Client e build de produção. |
 | `npm start` | Serve o build de produção somente em `127.0.0.1`. |
 | `npm run db:seed` | Cria o perfil inicial editável e pesos padrão sem vagas fictícias. |
@@ -156,6 +163,8 @@ O Compose publica somente `127.0.0.1:3000` e mantém banco/uploads no volume `ap
 | `OPENAI_API_KEY` | Para IA | Chave da API, nunca enviada ao navegador ou gravada no banco. |
 | `OPENAI_MODEL` | Para IA | Modelo disponível no projeto da API. Não há modelo presumido. |
 | `OPENAI_MONTHLY_REQUEST_LIMIT` | Não | Referência de configuração; o limite ativo é editável no painel. |
+| `DISCOVERY_INTERVAL_MINUTES` | Não | Intervalo do agendador Python; padrão 120 e mínimo 30 minutos. |
+| `LOCAL_AUTOMATION_TOKEN` | Não | Token exclusivo da API local; quando vazio, é derivado de `APP_ENCRYPTION_KEY`. |
 
 ## Configuração opcional da OpenAI
 
@@ -187,6 +196,41 @@ GOOGLE_REDIRECT_URI="http://127.0.0.1:3000/api/integrations/gmail/callback"
 A conexão segue o [fluxo OAuth para aplicações web](https://developers.google.com/identity/protocols/oauth2/web-server) com `state`, acesso offline e o escopo mínimo [`gmail.readonly`](https://developers.google.com/workspace/gmail/api/auth/scopes). A importação usa `labelIds` para limitar mensagens ao marcador escolhido.
 
 Tokens recebidos são criptografados com AES-256-GCM antes de entrar no SQLite. A desconexão remove os tokens armazenados. Mensagens e anúncios são tratados como conteúdo não confiável; instruções encontradas nesses textos não controlam a aplicação.
+
+## Busca automática com Python
+
+A automação não faz scraping dos portais. LinkedIn, Indeed e Glassdoor enviam alertas oficiais ao Gmail conectado; o Python acorda a API local a cada duas horas e o backend lê apenas essas mensagens. O fluxo é:
+
+```text
+Alerta oficial no Gmail
+  → validar remetente e extrair links de vagas
+  → remover duplicatas
+  → aplicar cargo, senioridade, localização/modelo e empresas bloqueadas do perfil
+  → calcular relevância
+  → abaixo da nota mínima: Arquivada
+  → nota mínima atingida: Aguardando ação + currículo padrão preparado
+  → após sua autorização: Playwright abre e preenche o formulário
+  → revisão e clique final continuam humanos
+```
+
+### Configuração única dos portais
+
+Crie pelo menos um alerta em cada portal com as buscas desejadas, por exemplo `desenvolvedor pleno`, `software engineer mid level`, `full stack developer`, `backend developer` e `frontend developer`. Ative o envio por e-mail para a conta Gmail conectada à aplicação. Os links de configuração também ficam em **Integrações → Busca automática de vagas**.
+
+Os portais controlam a frequência de seus próprios e-mails. O intervalo de duas horas significa que a aplicação processa novos alertas em até aproximadamente duas horas depois de eles chegarem; não força o portal a gerar vagas novas nesse intervalo.
+
+### Instalação do agendador
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r automation\requirements.txt
+npm run build
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\automation\install_windows_task.ps1
+```
+
+A tarefa `Carreira - Busca Automatica de Vagas` inicia o painel e o agendador no login do Windows. Ela usa uma trava entre processos para impedir duas cópias simultâneas. Os registros rotativos ficam em `data/logs/python-discovery.log`.
+
+Em **Integrações**, é possível pausar a busca, escolher fontes, editar termos, ajustar a nota mínima e o limite diário. As preferências de senioridade, região, modelo de trabalho e empresas bloqueadas vêm da tela **Perfil**.
 
 ## Backup e restauração
 
@@ -224,7 +268,7 @@ Executado novamente em 10 de setembro de 2026 no Chromium do Playwright. Foram c
 
 Resultado da execução completa:
 
-- 22 testes unitários e de integração aprovados.
+- 26 testes unitários e de integração aprovados, incluindo remetente falso, links regionais e pontuação de senioridade.
 - 7 testes de interface aprovados, incluindo os quatro casos de QA acima e a proteção do modo semiautomático.
 - Build de produção aprovado.
 - Lint e verificação TypeScript aprovados.
@@ -245,6 +289,7 @@ Resultado da execução completa:
 | `/api/integrations/gmail/callback` | GET | Troca do código e armazenamento criptografado. |
 | `/api/integrations/gmail/import` | POST | Importação do marcador selecionado. |
 | `/api/integrations/gmail/disconnect` | POST | Remoção da conexão e dos tokens locais. |
+| `/api/discovery/run` | POST | Execução local autenticada da descoberta agendada. |
 
 ## Solução de problemas
 
@@ -257,6 +302,8 @@ Resultado da execução completa:
 - **Navegador assistido não abre:** execute `npx playwright install chromium`, feche outra sessão assistida que esteja usando o mesmo perfil e tente novamente.
 - **Portal pede login ou CAPTCHA:** conclua essa etapa no navegador aberto; o assistente retomará o preenchimento dos campos reconhecidos na tela seguinte.
 - **Campo ficou laranja:** preencha/revise manualmente ou cadastre uma resposta não sensível e confirmada no Banco de respostas para futuras sessões.
+- **Busca automática não encontra vagas:** confirme que o Gmail está conectado e que os alertas oficiais dos portais estão chegando à caixa postal; depois use **Buscar alertas agora**.
+- **Agendador não inicia no login:** execute novamente `automation\install_windows_task.ps1` e confira `data/logs/python-discovery.log`.
 
 ## Estrutura
 
@@ -264,6 +311,7 @@ Resultado da execução completa:
 - `src/lib`: regras de negócio, segurança, IA, Gmail e backup.
 - `prisma`: schema, migração e seed editável.
 - `worker`: processo agendado separado.
+- `automation`: agendador Python, inicialização no login e instalador da tarefa do Windows.
 - `tests`: testes unitários, integração e interface.
 
 ## Segurança e dados

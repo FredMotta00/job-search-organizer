@@ -9,6 +9,8 @@
     "start": "next start --hostname 127.0.0.1",
     "start:docker": "next start --hostname 0.0.0.0",
     "worker": "tsx worker/index.ts",
+    "search:python": ".venv\\Scripts\\python.exe automation\\search_scheduler.py",
+    "search:once": ".venv\\Scripts\\python.exe automation\\search_scheduler.py --once",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

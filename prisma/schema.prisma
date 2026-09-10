@@ -83,6 +83,8 @@ model Job {
   status               JobStatus                @default(NOVA)
   manualScore          Int?
   manualScoreReason    String?
+  discoveryScore       Int?
+  discoveryReason      String?
   assessment           MatchAssessment?
   histories            StatusHistory[]
   preparations         ApplicationPreparation[]
@@ -210,6 +212,11 @@ model Settings {
   aiMonthlyLimit         Int      @default(30)
   aiRequestsThisMonth    Int      @default(0)
   aiUsageMonth           String   @default("")
+  discoveryEnabled       Boolean  @default(true)
+  discoveryMinScore      Int      @default(65)
+  discoveryDailyLimit    Int      @default(20)
+  discoveryQueriesJson   String   @default("[\"desenvolvedor pleno\",\"desenvolvedor full-stack\",\"software engineer\",\"backend developer\",\"frontend developer\",\"typescript developer\",\"python developer\",\"java developer\",\"react developer\",\"next.js developer\",\"engenheiro de software\"]")
+  discoverySourcesJson   String   @default("[\"LinkedIn\",\"Indeed\",\"Glassdoor\"]")
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }

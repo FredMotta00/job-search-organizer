@@ -12,6 +12,7 @@ import { buildDeterministicPreparation } from "@/lib/preparation";
 import { OpenAiProvider } from "@/lib/ai";
 import { choosePreferredResume } from "@/lib/application-fields";
 import { launchApplicationAssistant } from "@/lib/automation-launcher";
+import { runDiscoveryWithExecution } from "@/lib/discovery";
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const optional = (data: FormData, key: string) => text(data, key) || null;
@@ -229,6 +230,34 @@ export async function saveSettings(data: FormData) {
 export async function saveGmailLabel(data: FormData) {
   await prisma.integration.update({ where: { provider: "gmail" }, data: { selectedFolder: text(data, "label") } });
   revalidatePath("/integracoes");
+}
+
+export async function saveDiscoverySettings(data: FormData) {
+  const minScore = Number(text(data, "discoveryMinScore"));
+  const dailyLimit = Number(text(data, "discoveryDailyLimit"));
+  const queries = lines(data.get("discoveryQueries")).slice(0, 30);
+  const allowedSources = ["LinkedIn", "Indeed", "Glassdoor"];
+  const sources = allowedSources.filter((source) => data.getAll("discoverySources").includes(source));
+  if (!Number.isInteger(minScore) || minScore < 0 || minScore > 100 || !Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 100 || !queries.length || !sources.length) {
+    redirect("/integracoes?erro=descoberta");
+  }
+  await prisma.settings.upsert({
+    where: { id: 1 },
+    create: { id: 1, discoveryEnabled: data.get("discoveryEnabled") === "on", discoveryMinScore: minScore, discoveryDailyLimit: dailyLimit, discoveryQueriesJson: JSON.stringify(queries), discoverySourcesJson: JSON.stringify(sources) },
+    update: { discoveryEnabled: data.get("discoveryEnabled") === "on", discoveryMinScore: minScore, discoveryDailyLimit: dailyLimit, discoveryQueriesJson: JSON.stringify(queries), discoverySourcesJson: JSON.stringify(sources) },
+  });
+  revalidatePath("/integracoes");
+  redirect("/integracoes?descoberta=salva");
+}
+
+export async function runDiscoveryNow() {
+  let summary: Awaited<ReturnType<typeof runDiscoveryWithExecution>>;
+  try {
+    summary = await runDiscoveryWithExecution("manual-job-discovery");
+  } catch (error) {
+    redirect(`/integracoes?erro=${encodeURIComponent(error instanceof Error ? error.message : "Falha na descoberta de vagas.")}`);
+  }
+  redirect(`/vagas?descobertas=${summary.discovered}&fila=${summary.queued}&arquivadas=${summary.archived}`);
 }
 
 export async function startSemiAutomaticApplication(data: FormData) {
