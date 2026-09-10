@@ -20,7 +20,11 @@ async function main() {
       confirmedFactsJson: JSON.stringify([]),
     },
   });
-  await prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  await prisma.settings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, aiMonthlyLimit: Math.max(0, Number(process.env.OPENAI_MONTHLY_REQUEST_LIMIT) || 30) },
+  });
 }
 
 main().finally(() => prisma.$disconnect());

@@ -32,6 +32,47 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 - npm.
 - Docker é opcional.
 
+## Primeiro uso
+
+1. Abra **Perfil**, revise os dados iniciais e mantenha como rascunho tudo que ainda não foi validado.
+2. Copie para **Fatos confirmados** somente afirmações que você revisou e aceita usar em candidaturas.
+3. Importe o currículo em **Currículos**, confira o texto extraído e confirme a versão.
+4. Cadastre uma vaga em **Vagas**. A URL é armazenada e normalizada, mas nunca é acessada pelo servidor.
+5. Revise nota, cobertura, requisitos atendidos, lacunas, desconhecidos e critérios eliminatórios.
+6. Avance para **Aprovada para preparar** e gere os materiais.
+7. Revise as pendências, abra o portal e conclua a candidatura manualmente.
+8. Marque **Enviada** apenas com a caixa de confirmação ou uma evidência verificável.
+
+## Estados do pipeline
+
+| Estado | Finalidade |
+| --- | --- |
+| Nova | Vaga recém-importada ou cadastrada. |
+| Em análise | Avaliação humana em andamento. |
+| Aprovada para preparar | Vaga escolhida, ainda não enviada. |
+| Preparada | Materiais gerados e aguardando revisão. |
+| Aguardando ação | Tudo pronto para conclusão manual no portal. |
+| Enviada | Envio explicitamente confirmado ou comprovado. |
+| Em processo | Empresa respondeu ou iniciou o processo. |
+| Entrevista | Entrevista confirmada. |
+| Oferta | Oferta recebida. |
+| Rejeitada | Rejeição explícita; silêncio não conta como rejeição. |
+| Arquivada | Registro preservado fora do fluxo ativo. |
+| Retirada | Candidatura retirada por decisão do usuário. |
+
+## Como a compatibilidade é calculada
+
+Os pesos padrão são tecnologias 30, senioridade 20, localização/modelo 15, responsabilidades 15, idioma 10 e salário/contratação 10. Somente critérios com dados conhecidos entram no denominador da nota; por isso a cobertura é exibida separadamente. Requisitos desejáveis não viram bloqueios e informações ausentes não são contadas como falha.
+
+As faixas são:
+
+- 80–100: prioritária.
+- 65–79: revisar.
+- Abaixo de 65: baixa prioridade.
+- Eliminada: existe ao menos um critério eliminatório, independentemente da nota informativa.
+
+A nota é uma comparação determinística com o perfil, não uma probabilidade de contratação.
+
 ## Execução local
 
 ```powershell
@@ -51,6 +92,17 @@ npm run worker
 
 O painel e o banco ficam restritos a este computador por padrão. O SQLite é salvo em `data/app.db`; uploads ficam em `data/uploads/`.
 
+### Comandos úteis
+
+| Comando | Ação |
+| --- | --- |
+| `npm run dev` | Painel em modo de desenvolvimento, ligado somente a `127.0.0.1`. |
+| `npm run worker` | Worker de sincronização e tarefas agendadas. |
+| `npm run build` | Gera Prisma Client e build de produção. |
+| `npm start` | Serve o build de produção somente em `127.0.0.1`. |
+| `npm run db:seed` | Cria o perfil inicial editável e pesos padrão sem vagas fictícias. |
+| `npm run check` | Executa lint, testes unitários/integrados e build. |
+
 ## Docker Compose
 
 Copie `.env.example` para `.env` e execute:
@@ -60,6 +112,21 @@ docker compose up --build
 ```
 
 O Compose publica somente `127.0.0.1:3000` e mantém banco/uploads no volume `app_data`.
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Uso |
+| --- | --- | --- |
+| `DATABASE_URL` | Sim | Arquivo SQLite. O padrão local é `file:../data/app.db`. |
+| `APP_URL` | Sim | URL local usada por callbacks. |
+| `WORKER_INTERVAL_MS` | Não | Intervalo do worker; mínimo efetivo de 60 segundos. |
+| `APP_ENCRYPTION_KEY` | Para Gmail | Chave base64 de 32 bytes usada somente para criptografar tokens. |
+| `GOOGLE_CLIENT_ID` | Para Gmail | Identificador público do cliente OAuth. |
+| `GOOGLE_CLIENT_SECRET` | Para Gmail | Segredo do cliente, mantido somente no `.env`. |
+| `GOOGLE_REDIRECT_URI` | Para Gmail | Callback que deve coincidir exatamente com o Google Cloud. |
+| `OPENAI_API_KEY` | Para IA | Chave da API, nunca enviada ao navegador ou gravada no banco. |
+| `OPENAI_MODEL` | Para IA | Modelo disponível no projeto da API. Não há modelo presumido. |
+| `OPENAI_MONTHLY_REQUEST_LIMIT` | Não | Referência de configuração; o limite ativo é editável no painel. |
 
 ## Configuração opcional da OpenAI
 
@@ -90,6 +157,8 @@ GOOGLE_REDIRECT_URI="http://127.0.0.1:3000/api/integrations/gmail/callback"
 
 A conexão segue o [fluxo OAuth para aplicações web](https://developers.google.com/identity/protocols/oauth2/web-server) com `state`, acesso offline e o escopo mínimo [`gmail.readonly`](https://developers.google.com/workspace/gmail/api/auth/scopes). A importação usa `labelIds` para limitar mensagens ao marcador escolhido.
 
+Tokens recebidos são criptografados com AES-256-GCM antes de entrar no SQLite. A desconexão remove os tokens armazenados. Mensagens e anúncios são tratados como conteúdo não confiável; instruções encontradas nesses textos não controlam a aplicação.
+
 ## Backup e restauração
 
 Use **Integrações → Dados, backup e exclusão** para exportar JSON. O backup contém dados do perfil, vagas, currículos extraídos, avaliações, materiais e histórico; nunca inclui tokens OAuth ou variáveis de ambiente.
@@ -113,6 +182,49 @@ npm audit
 
 A suíte cobre deduplicação, dados ausentes, obrigatório versus desejável, critérios eliminatórios, prevenção de invenção, persistência, transições, falso envio, credenciais ausentes, conteúdo não confiável, upload, URLs e backup/restauração.
 
+### Relatório de QA — busca “Dev Pleno de Teste”
+
+Executado em 9 de setembro de 2026 no Chromium do Playwright. Foram criadas quatro vagas fictícias com a fonte `QA_CONTROLADO`; todas foram removidas automaticamente ao final da suíte.
+
+| Caso | Cenário buscado | Resultado esperado | Resultado |
+| --- | --- | --- | --- |
+| QA-01 | `Dev Pleno de Teste — TypeScript` | Encontrar a vaga compatível e exibir 92/100. | Aprovado |
+| QA-02 | `Dev Pleno de Teste — Dados incompletos` | Encontrar a vaga e exibir o aviso `incompleta`. | Aprovado |
+| QA-03 | `Dev Pleno de Teste — Possível duplicata` | Encontrar o registro e sinalizar possível duplicata sem fusão. | Aprovado |
+| QA-04 | `Dev Pleno de Teste — Critério eliminatório` | Preservar a nota 86 e exibir o bloqueio separadamente. | Aprovado |
+
+Resultado da execução completa:
+
+- 17 testes unitários e de integração aprovados.
+- 6 testes de interface aprovados, incluindo os quatro casos de QA acima.
+- Build de produção aprovado.
+- Lint e verificação TypeScript aprovados.
+- Worker iniciado e execução agendada concluída com sucesso.
+- `npm audit`: zero vulnerabilidades conhecidas.
+
+## API local
+
+| Rota | Método | Finalidade |
+| --- | --- | --- |
+| `/api/health` | GET | Verificação de processo e acesso ao SQLite. |
+| `/api/resumes` | POST | Upload validado e extração de PDF/DOCX. |
+| `/api/backup` | GET | Exportação JSON sem tokens ou segredos. |
+| `/api/backup/restore` | POST | Restauração transacional de backup validado. |
+| `/api/data/delete` | POST | Exclusão local após a confirmação textual `EXCLUIR`. |
+| `/api/integrations/gmail/start` | GET | Início do OAuth com `state`. |
+| `/api/integrations/gmail/callback` | GET | Troca do código e armazenamento criptografado. |
+| `/api/integrations/gmail/import` | POST | Importação do marcador selecionado. |
+| `/api/integrations/gmail/disconnect` | POST | Remoção da conexão e dos tokens locais. |
+
+## Solução de problemas
+
+- **Banco não existe:** execute `npx prisma migrate deploy` e `npm run db:seed`.
+- **PDF sem texto:** o arquivo provavelmente é digitalizado; aplique OCR externamente e importe novamente.
+- **Gmail desconectado:** confira as quatro variáveis Google, `APP_ENCRYPTION_KEY`, a Gmail API habilitada e a URI de callback exata.
+- **OpenAI desativada:** configure chave e modelo no `.env`, reinicie o painel e habilite a opção em **Integrações**.
+- **Porta 3000 ocupada:** encerre o processo anterior antes de reiniciar, preservando a URL do callback configurada.
+- **Falha no worker:** consulte **Execuções**; mensagens são limitadas e nunca incluem tokens.
+
 ## Estrutura
 
 - `src/app`: telas, Server Actions e Route Handlers.
@@ -120,5 +232,15 @@ A suíte cobre deduplicação, dados ausentes, obrigatório versus desejável, c
 - `prisma`: schema, migração e seed editável.
 - `worker`: processo agendado separado.
 - `tests`: testes unitários, integração e interface.
+
+## Segurança e dados
+
+- `.env`, SQLite, uploads, backups locais e relatórios de teste são ignorados pelo Git.
+- O painel não possui contas, organizações, cobrança ou exposição pública intencional.
+- Route Handlers e Server Actions validam limites e campos relevantes no servidor.
+- URLs importadas aceitam apenas HTTP/HTTPS; nenhuma requisição é feita a elas.
+- Erros externos têm timeout/tentativas limitadas e são registrados sem credenciais.
+- Backups exportados omitem integrações e tokens; guarde os arquivos exportados em local protegido.
+- O sistema não responde testes técnicos, avaliações comportamentais ou declarações pessoais como se fosse o usuário.
 
 Dados iniciais sobre GPECx e tecnologias são apenas rascunhos editáveis. Eles não entram em textos de candidatura até serem copiados e confirmados explicitamente em **Fatos confirmados**.

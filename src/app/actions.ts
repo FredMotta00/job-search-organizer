@@ -17,7 +17,7 @@ const optional = (data: FormData, key: string) => text(data, key) || null;
 async function defaults() {
   const [profile, settings] = await Promise.all([
     prisma.profile.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }),
-    prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } }),
+    prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1, aiMonthlyLimit: Math.max(0, Number(process.env.OPENAI_MONTHLY_REQUEST_LIMIT) || 30) } }),
   ]);
   return { profile, settings };
 }
