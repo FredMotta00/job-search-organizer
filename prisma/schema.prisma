@@ -121,6 +121,7 @@ model Resume {
   storedPath       String?
   extractedText    String
   confirmed        Boolean                  @default(false)
+  isDefault        Boolean                  @default(false)
   orientation      ResumeOrientation        @default(ORIGINAL)
   parentId         String?
   changesJson      String                   @default("[]")

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideFieldValue, jobLooksEnglish, resumeLanguageScore } from "@/lib/application-fields";
+import { choosePreferredResume, decideFieldValue, jobLooksEnglish, resumeLanguageScore } from "@/lib/application-fields";
 
 const profile = {
   name: "Frederico Caires da Motta",
@@ -32,5 +32,13 @@ describe("preenchimento semiautomático", () => {
     const english = resumeLanguageScore({ name: "Frederico Resume EN", extractedText: "Professional summary Work experience Education Skills" }, true);
     const portuguese = resumeLanguageScore({ name: "Frederico Currículo", extractedText: "Resumo profissional Experiência profissional Formação Competências" }, true);
     expect(english).toBeGreaterThan(portuguese);
+  });
+
+  it("sempre prioriza o currículo marcado como padrão", () => {
+    const resumes = [
+      { id: "english", name: "Resume EN", extractedText: "Professional summary Work experience", isDefault: false },
+      { id: "official", name: "Frederico Motta", extractedText: "Currículo oficial", isDefault: true },
+    ];
+    expect(choosePreferredResume(resumes, { title: "Software Engineer", description: "Requirements and responsibilities" })?.id).toBe("official");
   });
 });

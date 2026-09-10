@@ -14,7 +14,7 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 - Versões de currículo Full-Stack, Backend/Integrações e IA/Automação sem adicionar fatos.
 - Preparação determinística completa sem IA; OpenAI opcional com saída estruturada, validação de vínculo e limite mensal.
 - Banco de respostas com marcação de conteúdo sensível e confirmação.
-- Candidatura semiautomática com sessão persistente, currículo recomendado por idioma, preenchimento contínuo entre etapas e relatório de campos.
+- Candidatura semiautomática com sessão persistente, currículo padrão global, preenchimento contínuo entre etapas e relatório de campos.
 - Destaque visual no portal: verde para dados preenchidos e laranja para decisões pendentes; o clique final é sempre humano.
 - Gmail opcional via OAuth, escopo somente leitura e seleção de um marcador específico.
 - Dashboard com denominadores explícitos, exportação/restauração JSON e exclusão de dados.
@@ -39,11 +39,11 @@ Aplicação local e de usuário único para cadastrar vagas, avaliar compatibili
 
 1. Abra **Perfil**, revise os dados iniciais e mantenha como rascunho tudo que ainda não foi validado.
 2. Copie para **Fatos confirmados** somente afirmações que você revisou e aceita usar em candidaturas.
-3. Importe o currículo em **Currículos**, confira o texto extraído e confirme a versão.
+3. Importe o currículo em **Currículos**, confira o texto extraído, confirme a versão e marque o modelo oficial como **padrão para todas as vagas**.
 4. Cadastre uma vaga em **Vagas**, incluindo a URL HTTP/HTTPS do formulário.
 5. Revise nota, cobertura, requisitos atendidos, lacunas, desconhecidos e critérios eliminatórios.
 6. Avance para **Aprovada para preparar** e gere os materiais.
-7. Em **Modo semiautomático**, confirme o currículo recomendado e clique em **Abrir e preencher candidatura**.
+7. Em **Modo semiautomático**, confira o currículo padrão já selecionado e clique em **Abrir e preencher candidatura**.
 8. Faça login se necessário e avance pelas telas. O assistente acompanha a navegação, preenche campos reconhecidos e anexa o currículo; verde significa preenchido e laranja significa revisar.
 9. Na última tela, revise todos os dados e clique você mesmo em enviar. Fechar o navegador encerra a sessão assistida.
 10. Marque **Enviada** no painel apenas depois de ver a confirmação do portal, usando a caixa de confirmação ou uma evidência verificável.
@@ -58,7 +58,7 @@ Dados preenchidos automaticamente:
 - LinkedIn, GitHub, portfólio e site quando disponíveis;
 - apresentação curta e carta de apresentação já preparadas;
 - respostas não sensíveis que estejam confirmadas no Banco de respostas;
-- arquivo do currículo confirmado, priorizando inglês para anúncios em inglês e português para anúncios em português.
+- arquivo do currículo confirmado que estiver marcado como padrão global; a recomendação por idioma só é usada quando nenhum padrão foi definido.
 
 Dados deliberadamente não decididos pelo assistente:
 
@@ -213,7 +213,7 @@ A suíte cobre deduplicação, dados ausentes, obrigatório versus desejável, c
 
 ### Relatório de QA — busca “Dev Pleno de Teste”
 
-Executado em 9 de setembro de 2026 no Chromium do Playwright. Foram criadas quatro vagas fictícias com a fonte `QA_CONTROLADO`; todas foram removidas automaticamente ao final da suíte.
+Executado novamente em 10 de setembro de 2026 no Chromium do Playwright. Foram criadas quatro vagas fictícias com a fonte `QA_CONTROLADO`; todas foram removidas automaticamente ao final da suíte.
 
 | Caso | Cenário buscado | Resultado esperado | Resultado |
 | --- | --- | --- | --- |
@@ -224,7 +224,7 @@ Executado em 9 de setembro de 2026 no Chromium do Playwright. Foram criadas quat
 
 Resultado da execução completa:
 
-- 21 testes unitários e de integração aprovados.
+- 22 testes unitários e de integração aprovados.
 - 7 testes de interface aprovados, incluindo os quatro casos de QA acima e a proteção do modo semiautomático.
 - Build de produção aprovado.
 - Lint e verificação TypeScript aprovados.

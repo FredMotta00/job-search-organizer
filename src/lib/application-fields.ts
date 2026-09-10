@@ -109,3 +109,11 @@ export function resumeLanguageScore(resume: { name: string; originalFileName?: s
   const unwanted = english ? portugueseSignals : englishSignals;
   return wanted.filter((signal) => text.includes(signal)).length * 2 - unwanted.filter((signal) => text.includes(signal)).length;
 }
+
+export function choosePreferredResume<T extends { name: string; originalFileName?: string | null; extractedText: string; isDefault: boolean }>(
+  resumes: T[],
+  job: { title: string; description: string; languagesJson?: string },
+) {
+  return resumes.find((resume) => resume.isDefault)
+    ?? [...resumes].sort((a, b) => resumeLanguageScore(b, jobLooksEnglish(job)) - resumeLanguageScore(a, jobLooksEnglish(job)))[0];
+}

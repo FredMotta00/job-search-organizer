@@ -10,7 +10,7 @@ import { neutralizeUntrustedText, normalizeJobUrl } from "@/lib/security";
 import { validateTransition } from "@/lib/status";
 import { buildDeterministicPreparation } from "@/lib/preparation";
 import { OpenAiProvider } from "@/lib/ai";
-import { jobLooksEnglish, resumeLanguageScore } from "@/lib/application-fields";
+import { choosePreferredResume } from "@/lib/application-fields";
 import { launchApplicationAssistant } from "@/lib/automation-launcher";
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
@@ -136,10 +136,12 @@ export async function transitionJob(data: FormData) {
 
 export async function prepareApplication(data: FormData) {
   const jobId = text(data, "jobId");
-  const resumeId = optional(data, "resumeId");
+  const requestedResumeId = optional(data, "resumeId");
   const [{ profile, settings }, job, resume] = await Promise.all([
     defaults(), prisma.job.findUniqueOrThrow({ where: { id: jobId } }),
-    resumeId ? prisma.resume.findUnique({ where: { id: resumeId } }) : Promise.resolve(null),
+    requestedResumeId
+      ? prisma.resume.findUnique({ where: { id: requestedResumeId } })
+      : prisma.resume.findFirst({ where: { isDefault: true, confirmed: true, storedPath: { not: null } } }),
   ]);
   const facts = parseJson<string[]>(profile.confirmedFactsJson, []);
   const prepared = buildDeterministicPreparation(job, facts, Boolean(resume?.confirmed));
@@ -189,6 +191,19 @@ export async function confirmResume(data: FormData) {
   revalidatePath("/curriculos");
 }
 
+export async function setDefaultResume(data: FormData) {
+  const id = text(data, "resumeId");
+  const resume = await prisma.resume.findUnique({ where: { id } });
+  if (!resume?.confirmed || !resume.storedPath) redirect("/curriculos?erro=padrao");
+  await prisma.$transaction([
+    prisma.resume.updateMany({ where: { isDefault: true }, data: { isDefault: false } }),
+    prisma.resume.update({ where: { id }, data: { isDefault: true } }),
+  ]);
+  revalidatePath("/curriculos");
+  revalidatePath("/vagas/[id]", "page");
+  redirect("/curriculos?padrao=1");
+}
+
 export async function createResumeVersion(data: FormData) {
   const id = text(data, "resumeId");
   const orientation = text(data, "orientation") as ResumeOrientation;
@@ -230,8 +245,7 @@ export async function startSemiAutomaticApplication(data: FormData) {
   if (!job?.url) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Informe a URL da candidatura antes de iniciar o assistente.")}`);
   if (!resumes.length) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("Confirme um currículo com arquivo PDF ou DOCX antes de iniciar.")}`);
 
-  const english = jobLooksEnglish(job);
-  const recommended = [...resumes].sort((a, b) => resumeLanguageScore(b, english) - resumeLanguageScore(a, english))[0];
+  const recommended = choosePreferredResume(resumes, job);
   const resume = requestedResumeId ? resumes.find((item) => item.id === requestedResumeId) : recommended;
   if (!resume) redirect(`/vagas/${jobId}?erro=${encodeURIComponent("O currículo selecionado não está disponível ou confirmado.")}`);
 
