@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { importGmailAlerts } from "@/lib/gmail";
+export async function POST(request:Request){const execution=await prisma.execution.create({data:{task:"gmail-import",status:"running"}});try{const count=await importGmailAlerts();await prisma.execution.update({where:{id:execution.id},data:{status:"success",processed:count,finishedAt:new Date()}});return NextResponse.redirect(new URL("/vagas",request.url),303)}catch(error){const message=error instanceof Error?error.message:"Falha na importação";await prisma.execution.update({where:{id:execution.id},data:{status:"failed",finishedAt:new Date(),errorMessage:message.slice(0,500)}});return NextResponse.redirect(new URL(`/integracoes?erro=${encodeURIComponent(message)}`,request.url),303)}}

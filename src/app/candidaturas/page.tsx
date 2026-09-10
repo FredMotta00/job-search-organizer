@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { Badge, Card, Empty, PageHeader } from "@/components/ui";
+import { prisma } from "@/lib/db";
+import { STATUS_LABELS } from "@/lib/status";
+export const dynamic="force-dynamic";
+export default async function ApplicationsPage(){const jobs=await prisma.job.findMany({where:{NOT:{status:"NOVA"}},include:{histories:{orderBy:{createdAt:"desc"},take:1},preparations:{orderBy:{createdAt:"desc"},take:1}},orderBy:{updatedAt:"desc"}});return <><PageHeader eyebrow="Acompanhamento" title="Histórico de candidaturas" description="Ausência de resposta nunca é convertida automaticamente em rejeição."/><Card>{jobs.length===0?<Empty title="Nenhuma movimentação">Mova uma vaga para “Em análise” para iniciar o histórico.</Empty>:<div className="tableWrap"><table className="table"><thead><tr><th>Vaga</th><th>Status</th><th>Última alteração</th><th>Material</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id}><td><Link href={`/vagas/${j.id}`}><strong>{j.title}</strong><br/><small>{j.company}</small></Link></td><td><Badge>{STATUS_LABELS[j.status]}</Badge></td><td>{j.histories[0]?.createdAt.toLocaleDateString("pt-BR")??"—"}</td><td>{j.preparations.length?"Preparado":"Pendente"}</td></tr>)}</tbody></table></div>}</Card></>}

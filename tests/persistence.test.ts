@@ -1,0 +1,7 @@
+import { afterAll, describe, expect, it } from "vitest";
+import { PrismaClient } from "@prisma/client";
+import { exportBackup, restoreBackup } from "@/lib/backup";
+const ids:string[]=[];
+afterAll(async()=>{const db=new PrismaClient();await db.job.deleteMany({where:{id:{in:ids}}});await db.$disconnect()});
+describe("persistência e backup",()=>{it("persiste após reiniciar o cliente",async()=>{const a=new PrismaClient();const row=await a.job.create({data:{source:"Teste",externalId:`persist-${Date.now()}`,company:"Teste",title:"Persistência",description:"d"}});ids.push(row.id);await a.$disconnect();const b=new PrismaClient();expect(await b.job.findUnique({where:{id:row.id}})).not.toBeNull();await b.$disconnect()});it("exporta e restaura sem perder a estrutura",async()=>{const db=new PrismaClient();const backup=await exportBackup(db);expect(backup.schemaVersion).toBe(1);await restoreBackup(db,JSON.parse(JSON.stringify(backup)));expect((await exportBackup(db)).schemaVersion).toBe(1);await db.$disconnect()})});
+describe("deduplicação persistente",()=>{it("rejeita o mesmo identificador na mesma fonte",async()=>{const db=new PrismaClient();const externalId=`dup-${Date.now()}`;const first=await db.job.create({data:{source:"Teste",externalId,company:"A",title:"Dev",description:""}});ids.push(first.id);await expect(db.job.create({data:{source:"Teste",externalId,company:"B",title:"Dev",description:""}})).rejects.toMatchObject({code:"P2002"});await db.$disconnect()})});

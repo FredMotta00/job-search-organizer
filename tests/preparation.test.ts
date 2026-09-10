@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest";
+import { buildDeterministicPreparation } from "@/lib/preparation";
+describe("preparação fundamentada",()=>{it("não inventa experiência sem fatos confirmados",()=>{const r=buildDeterministicPreparation({title:"Dev",company:"Acme",description:"Vaga"},[],false);expect(r.groundedClaims).toEqual([]);expect(r.shortIntroduction).toContain("confirme os fatos");expect(r.pendingItems).toContain("Selecione e confirme uma versão de currículo.")});it("usa apenas fatos fornecidos",()=>{const facts=["Trabalho com TypeScript","Faço revisão de código"];const r=buildDeterministicPreparation({title:"Dev",company:"Acme",description:"Vaga"},facts,true);expect(r.groundedClaims).toEqual(facts);expect(r.shortIntroduction).toContain(facts[0])})});
